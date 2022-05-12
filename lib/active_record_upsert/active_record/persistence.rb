@@ -28,7 +28,18 @@ module ActiveRecordUpsert
         existing_attribute_names = attributes_for_create(attributes.keys)
         existing_attributes = attributes_with_values(existing_attribute_names)
         values = self.class._upsert_record(existing_attributes, upsert_attribute_names, [arel_condition].compact, opts)
-        @attributes = self.class.attributes_builder.build_from_database(values.first.to_h)
+
+        new_attributes = if values.first.to_h.empty? && opts[:upsert_keys].present?
+          find_by_conditions = opts[:upsert_keys].index_with do |upsert_key|
+            send(upsert_key)
+          end
+          existing_record = self.class.find_by(find_by_conditions)
+          existing_record.attributes
+        else
+          values.first.to_h
+        end
+
+        @attributes = self.class.attributes_builder.build_from_database(new_attributes)
         @new_record = false
         changes_applied
         values
